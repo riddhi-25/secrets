@@ -4,8 +4,8 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose=require("mongoose");
-mongoose.connection.socketTimeoutMS = 20000;
-const encrypt=require("mongoose-encryption");
+const bcrypt = require('bcryptjs');
+const saltRounds=10;
 
 const app = express();
  
@@ -19,9 +19,6 @@ const userSchema=new mongoose.Schema({
     email:String,
     password:String
 });
-
-
-userSchema.plugin(encrypt,{secret:process.env.SECRET,encryptedFields:["password"]});
 
 const User=new mongoose.model("User",userSchema);
 
@@ -38,10 +35,13 @@ app.get("/register",function(req,res){
 });
 
 app.post("/register", function(req, res) {
+    const hash = bcrypt.hashSync(req.body.password, saltRounds);
+ 
     const newUser = new User({
-      email: req.body.username,
-      password: req.body.password
+        email: req.body.username,
+        password: hash
     });
+  
   
     newUser.save().then(function() {
       res.render("secrets");
@@ -50,26 +50,29 @@ app.post("/register", function(req, res) {
     });
   });
 
-  app.post("/login", async (req, res) => {
+  app.post("/login", function (req, res) {
     const username = req.body.username;
     const password = req.body.password;
-  
-    try {
-      const foundUser = await User.findOne({email: username});
-  
-      if (foundUser) {
-        if (foundUser.password === password) {
+   
+    User.findOne({ email: username })
+      .then(function (foundUser) {
+        /*if (foundUser.password === password) {
           res.render("secrets");
-          console.log("New login (" + username + ")");
-        } else {
-          res.render("login", {errMsg: "Email or password incorrect", username: username, password: password});
-        }
-      } else {
-        res.render("login", {errMsg: "Email or password incorrect", username: username, password: password});
-      }
-    } catch (err) {
-      console.log(err);
-    }
+        } */
+   
+        // Load hash from your password DB.
+        bcrypt.compare(req.body.password, foundUser.password).then(function(result) {
+          if(result == true){
+            res.render("secrets");
+          }
+          // result == true
+        });
+   
+      })
+   
+      .catch(function (e) {
+        console.log(e);
+      });
   });
 
 app.listen(3000, function() {
